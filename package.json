@@ -1,0 +1,22 @@
+{
+  "name": "soft-pause",
+  "module": "src/app.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "npx tsx src/app.ts"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/bun": "latest",
+    "tsx": "^4.23.15"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@slack/bolt": "^5.1.0",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.9"
+  }
+}
