@@ -8,7 +8,7 @@ import {
   getTotalPosts,
   getPostsToday,
   hasPostedBefore,
-} from "./db";
+} from "./db.js";
 
 const DAILY_LIMIT = 2;
 const TOTAL_LIMIT = 3;
