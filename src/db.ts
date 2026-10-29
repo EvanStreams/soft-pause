@@ -1,6 +1,9 @@
 import Database from "better-sqlite3";
+import { mkdirSync } from "fs";
 
+mkdirSync("/data", { recursive: true });
 const db = new Database("/data/big-pause.sqlite");
+console.log("Database opened at /data/big-pause.sqlite");
 
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
