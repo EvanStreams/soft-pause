@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-const db = new Database("big-pause.sqlite");
+const db = new Database("/data/big-pause.sqlite");
 
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
