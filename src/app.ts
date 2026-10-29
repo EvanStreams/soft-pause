@@ -10,6 +10,15 @@ import {
   hasPostedBefore,
 } from "./db.js";
 
+process.on("uncaughtException", (err) => {
+  if (err instanceof TypeError && err.stack?.includes("SocketModeClient")) {
+    console.error("Ignored socket-mode error:", err.message);
+    return;
+  }
+  console.error("Uncaught exception:", err);
+  process.exit(1);
+});
+
 const DAILY_LIMIT = 2;
 const TOTAL_LIMIT = 3;
 
@@ -32,6 +41,31 @@ const app = new App({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
   receiver,
 });
+
+app.error(async (error) => {
+  console.error("Unhandled Bolt error:", error);
+});
+
+const deleteQueue: { channel: string; ts: string }[] = [];
+let processingDeletes = false;
+
+function enqueueDelete(channel: string, ts: string) {
+  deleteQueue.push({ channel, ts });
+  if (!processingDeletes) drainDeleteQueue();
+}
+
+async function drainDeleteQueue() {
+  processingDeletes = true;
+  while (deleteQueue.length > 0) {
+    const item = deleteQueue.shift()!;
+    try {
+      await userClient.chat.delete({ channel: item.channel, ts: item.ts });
+    } catch (e: any) {
+      console.error(`Failed to delete message ${item.ts}:`, e?.data?.error ?? e);
+    }
+  }
+  processingDeletes = false;
+}
 
 app.command("/softpause", async ({ ack, body, client }) => {
   await ack();
@@ -75,15 +109,21 @@ app.view("soft_pause_compose", async ({ ack, body, view, client }) => {
   };
   const blocks = [{ ...richText, elements: [...richText.elements, attribution] }];
 
-  const result = await client.chat.postMessage({
-    channel: channelId,
-    blocks,
-    text: "New Soft Pause thread",
-    metadata: {
-      event_type: "soft_pause_thread",
-      event_payload: { creator: userId },
-    },
-  });
+  let result;
+  try {
+    result = await client.chat.postMessage({
+      channel: channelId,
+      blocks,
+      text: "New Soft Pause thread",
+      metadata: {
+        event_type: "soft_pause_thread",
+        event_payload: { creator: userId },
+      },
+    });
+  } catch (e: any) {
+    console.error(`Failed to post in ${channelId}:`, e?.data?.error ?? e);
+    return;
+  }
 
   const threadTs = result.ts!;
 
@@ -113,7 +153,7 @@ app.event("message", async ({ event, client }) => {
   const postsToday = getPostsToday(threadTs, channelId, userId);
 
   if (totalPosts >= TOTAL_LIMIT) {
-    try { await userClient.chat.delete({ channel: channelId, ts: msg.ts }); } catch {}
+    enqueueDelete(channelId, msg.ts);
     await client.chat.postEphemeral({
       channel: channelId,
       thread_ts: threadTs,
@@ -124,7 +164,7 @@ app.event("message", async ({ event, client }) => {
   }
 
   if (postsToday >= DAILY_LIMIT) {
-    try { await userClient.chat.delete({ channel: channelId, ts: msg.ts }); } catch {}
+    enqueueDelete(channelId, msg.ts);
     await client.chat.postEphemeral({
       channel: channelId,
       thread_ts: threadTs,
