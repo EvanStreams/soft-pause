@@ -90,6 +90,17 @@ function removeMessage(msg: any): Promise<boolean> {
 app.command("/softpause", async ({ ack, body, client }) => {
   await ack();
 
+  const joining = (async () => {
+    try {
+      const info = await client.conversations.info({ channel: body.channel_id });
+      if (info.channel?.is_channel && !info.channel.is_member) {
+        await client.conversations.join({ channel: body.channel_id });
+      }
+    } catch (e: any) {
+      console.error(`Failed to join ${body.channel_id}:`, e?.data?.error ?? e);
+    }
+  })();
+
   await client.views.open({
     trigger_id: body.trigger_id,
     view: {
@@ -112,14 +123,7 @@ app.command("/softpause", async ({ ack, body, client }) => {
     },
   });
 
-  try {
-    const info = await client.conversations.info({ channel: body.channel_id });
-    if (info.channel?.is_channel && !info.channel.is_member) {
-      await client.conversations.join({ channel: body.channel_id });
-    }
-  } catch (e: any) {
-    console.error(`Failed to join ${body.channel_id}:`, e?.data?.error ?? e);
-  }
+  await joining;
 });
 
 app.view("soft_pause_compose", async ({ ack, body, view, client }) => {
